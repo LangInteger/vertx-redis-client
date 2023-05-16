@@ -10,6 +10,11 @@ import io.vertx.ext.unit.TestContext;
 import io.vertx.ext.unit.junit.RunTestOnContext;
 import io.vertx.ext.unit.junit.VertxUnitRunner;
 import io.vertx.redis.client.*;
+import io.vertx.redis.client.impl.CommandImpl;
+import io.vertx.redis.client.impl.RedisClusterConnection;
+import io.vertx.redis.client.impl.RequestImpl;
+import java.lang.reflect.InvocationTargetException;
+import java.lang.reflect.Method;
 import java.util.stream.Collectors;
 import org.junit.*;
 import org.junit.runner.RunWith;
@@ -1009,6 +1014,56 @@ public class RedisClusterTest {
           test.complete();
           return Future.succeededFuture();
         });
+    }).onFailure(throwable -> {
+      throwable.printStackTrace();
+      should.fail(throwable);
+    });
+  }
+
+  @Test(timeout = 30_000)
+  public void splitRequestShouldProduceMapWithSizeEqualToUniqueSlotCountOfAllKeys(TestContext should) {
+    final Async test = should.async();
+
+    final String key1 = "{hash_tag}.some-key1";
+    final String key2 = "{hash_tag}.some-key2";
+
+    final String key3 = "{other_hash_tag}.other-key1";
+    final String key4 = "{other_hash_tag}.other-key2";
+
+    Request request = cmd(MGET).arg(key1).arg(key3).arg(key2).arg(key4);
+    final RequestImpl req = (RequestImpl) request;
+    final CommandImpl cmd = (CommandImpl) req.command();
+    List<byte[]> args;
+    try {
+      Method getArgsMethod = RequestImpl.class.getDeclaredMethod("getArgs");
+      getArgsMethod.setAccessible(true);
+      args = (List<byte[]>) getArgsMethod.invoke(req);
+    } catch (NoSuchMethodException | IllegalAccessException | InvocationTargetException e) {
+      e.printStackTrace();
+      should.fail(e);
+      return;
+    }
+
+    // Perform desired operations with the args variable
+    client.connect().compose(cluster -> {
+      cluster = (RedisClusterConnection) cluster;
+      cluster.exceptionHandler(should::fail);
+
+      Map<Integer, Request> splittedRequests = null;
+      try {
+        Method splitRequestMethod = cluster.getClass().getDeclaredMethod("splitRequest", CommandImpl.class, List.class);
+        splitRequestMethod.setAccessible(true);
+        splittedRequests = (Map<Integer, Request>) splitRequestMethod.invoke(cluster, cmd, args);
+
+        System.out.println("split request size: " + splittedRequests.size());
+        should.assertTrue(splittedRequests != null && splittedRequests.size() == 2);
+      } catch (NoSuchMethodException | IllegalAccessException | InvocationTargetException e) {
+        e.printStackTrace();
+        should.fail(e);
+      }
+
+      test.complete();
+      return Future.succeededFuture();
     }).onFailure(throwable -> {
       throwable.printStackTrace();
       should.fail(throwable);

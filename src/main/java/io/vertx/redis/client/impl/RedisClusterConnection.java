@@ -212,7 +212,7 @@ public class RedisClusterConnection implements RedisConnection {
 
   private Map<Integer, Request> splitRequest(CommandImpl cmd, List<byte[]> args) {
     // we will split the request across the slots
-    final Map<Integer, Request> map = new IdentityHashMap<>();
+    final Map<Integer, Request> map = new HashMap<>();
 
     int lastKey = cmd.iterateKeys(args, (begin, keyIdx, keyStep) -> {
       int slot = ZModem.generate(args.get(keyIdx));
