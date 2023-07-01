@@ -12,6 +12,7 @@ import io.vertx.redis.client.*;
 import java.util.stream.Collectors;
 import org.junit.*;
 import org.junit.runner.RunWith;
+import org.powermock.api.mockito.PowerMockito;
 import org.testcontainers.containers.FixedHostPortGenericContainer;
 import org.testcontainers.containers.GenericContainer;
 
@@ -20,6 +21,12 @@ import java.util.concurrent.atomic.AtomicInteger;
 
 import static io.vertx.redis.client.Command.*;
 import static io.vertx.redis.client.Request.cmd;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyInt;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.Mockito.spy;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
 
 
 @RunWith(VertxUnitRunner.class)
@@ -1012,6 +1019,58 @@ public class RedisClusterTest {
       throwable.printStackTrace();
       should.fail(throwable);
     });
+  }
+
+  @Test(timeout = 30_000)
+  public void mgetMultiKeyIn2SlotsWillCallSend2Times(TestContext should) {
+    final Async test = should.async();
+
+    final String key1 = "{hash_tag}.some-key1";
+    final String argv1 = "some-value1";
+    final String key2 = "{hash_tag}.some-key2";
+    final String argv2 = "some-value2";
+
+    final String key3 = "{other_hash_tag}.other-key1";
+    final String argv3 = "other-value1";
+    final String key4 = "{other_hash_tag}.other-key2";
+    final String argv4 = "other-value2";
+
+    client.connect().compose(originalCluster -> {
+        final RedisConnection cluster = PowerMockito.spy(originalCluster);
+        cluster.exceptionHandler(should::fail);
+        Future<@Nullable Response> setFuture1 = cluster.send(cmd(SET).arg(key1).arg(argv1));
+        Future<@Nullable Response> setFuture2 = cluster.send(cmd(SET).arg(key2).arg(argv2));
+        Future<@Nullable Response> setFuture3 = cluster.send(cmd(SET).arg(key3).arg(argv3));
+        Future<@Nullable Response> setFuture4 = cluster.send(cmd(SET).arg(key4).arg(argv4));
+        return Future.all(setFuture1, setFuture2, setFuture3, setFuture4)
+          .compose(compositeRet -> {
+            System.out.println("set operations successfully");
+            return cluster.send(cmd(MGET).arg(key1).arg(key3).arg(key2).arg(key4));
+          })
+          .compose(mgetResponse -> {
+            System.out.println("mget operation successfully");
+            Set<String> mgetRet = mgetResponse.stream().map(Response::toString)
+              .collect(Collectors.toSet());
+            should.assertTrue(mgetRet.contains(argv1));
+            should.assertTrue(mgetRet.contains(argv2));
+            should.assertTrue(mgetRet.contains(argv3));
+            should.assertTrue(mgetRet.contains(argv4));
+            try {
+              // 4 for set operation
+              // 2 for accumulated mget operation
+              PowerMockito.verifyPrivate(cluster, times(2 + 4))
+                .invoke("send", anyString(), anyInt(), any(), any());
+              return Future.succeededFuture();
+            } catch (Exception e) {
+              return Future.failedFuture(e);
+            }
+          });
+      })
+      .onSuccess(placeHolder -> test.complete())
+      .onFailure(throwable -> {
+        throwable.printStackTrace();
+        should.fail(throwable);
+      });
   }
 
   @Test(timeout = 30_000)
