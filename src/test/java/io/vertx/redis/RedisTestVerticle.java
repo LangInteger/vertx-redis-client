@@ -58,11 +58,11 @@ public final class RedisTestVerticle extends AbstractVerticle {
 
   private static RedisConnection connection;
   private static RedisAPI redisAPI;
-  private static final String REDIS_NUMBER_VALUE_KEY = "number_key";
-  private static final String REDIS_SET_VALUE_KEY = "set_key";
+  private static final String REDIS_NUMBER_VALUE_KEY = "number_key975";
+  private static final String REDIS_SET_VALUE_KEY = "set_key1372";
 
   public static void main(String[] args) {
-    // start redis with docker, must be closed manually in this test, sorry :)
+    // start redis with docker, will automatically end
     redis.start();
 
     Vertx vertx = Vertx.vertx();
