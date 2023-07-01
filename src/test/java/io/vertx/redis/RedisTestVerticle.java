@@ -1,7 +1,6 @@
 package io.vertx.redis;
 
 import io.vertx.core.AbstractVerticle;
-import io.vertx.core.CompositeFuture;
 import io.vertx.core.DeploymentOptions;
 import io.vertx.core.Future;
 import io.vertx.core.Promise;
@@ -58,8 +57,8 @@ public final class RedisTestVerticle extends AbstractVerticle {
 
   private static RedisConnection connection;
   private static RedisAPI redisAPI;
-  private static final String REDIS_NUMBER_VALUE_KEY = "number_key975";
-  private static final String REDIS_SET_VALUE_KEY = "set_key1372";
+  private static final String REDIS_NUMBER_VALUE_KEY = "user:post:pinned:1372";
+  private static final String REDIS_SET_VALUE_KEY = "user:like:post:975";
 
   public static void main(String[] args) {
     // start redis with docker, will automatically end
@@ -120,7 +119,7 @@ public final class RedisTestVerticle extends AbstractVerticle {
   }
 
   public static void loopTest() {
-    for (int i = 0; i < 1000; i++) {
+    for (int i = 0; i < 100; i++) {
       System.out.println(Thread.currentThread() + "execute loop: " + i);
       test1();
     }
@@ -137,34 +136,11 @@ public final class RedisTestVerticle extends AbstractVerticle {
       .onSuccess(compositeRet -> {
         Integer number = fetchNumberFuture.result();
         Set<Integer> set = fetchSetFuture.result();
-        //System.out.println(Thread.currentThread() + "number is: " + number + ", set is: " + set);
+        System.out.println(Thread.currentThread() + "number is: " + number + ", set is: " + set);
       })
       .onFailure(ex -> {
         System.out.println(Thread.currentThread() + "ex msg: " + ex.getMessage());
         ex.printStackTrace();
       });
   }
-
-//  public static Future test() {
-//
-//    // 猜一下 是不是 String.format线程问题
-//    String key1 = String.format("user:like:post:%s", 975);
-//    Future f1 = RedisUtils.redisApi.smembers(key1).map(r -> {
-//      Set<Long> ret = r.stream().map(Response::toLong).collect(Collectors.toSet());
-//      return Future.succeededFuture(ret);
-//    });
-//    Future f2 = RedisUtils.redisApi.get(String.format("user:post:pinned:%s", 1372)).map(r -> {
-//      return r.toInteger();
-//    });
-//    return CompositeFuture.all(f1, f2).compose(result -> {
-//      f1.result();
-//      f2.result();
-//      return Future.succeededFuture();
-//    }).onFailure(e -> {
-//      System.out.println(Thread.currentThread().getName() +
-//          ": Hello Verticle : " +
-//          Thread.currentThread().getId() + " " + e.getMessage());
-//    });
-//  }
-
 }
